@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Banner } from "@/components/banner";
-import { selectPerson } from "@/app/actions";
 import { activePerson } from "@/lib/active";
 import { allAttendance, allLeaves, allPeople, type Attendance, type Leave } from "@/lib/db";
 import {
@@ -84,6 +83,7 @@ export default async function DashboardPage({
                 <th>Today</th>
                 <th className="num">Hours</th>
                 <th className="num">Worked</th>
+                <th className="num">WFH</th>
                 <th className="num">Missed</th>
                 <th className="num">Leave</th>
               </tr>
@@ -91,16 +91,11 @@ export default async function DashboardPage({
             <tbody>
               {team.map((row) => (
                 <tr key={row.member.id} className={row.member.id === person.id ? "is-active" : undefined}>
-                  <th scope="row">
-                    <form action={selectPerson}>
-                      <input type="hidden" name="person" value={row.member.id} />
-                      <input type="hidden" name="next" value={`/report?month=${month}`} />
-                      <button type="submit">{row.member.name}</button>
-                    </form>
-                  </th>
+                  <th scope="row">{row.member.name}</th>
                   <td className={row.today.tone}>{row.today.text}</td>
                   <td className="num">{hoursLabel(row.summary.hours)}</td>
                   <td className="num">{row.summary.worked}</td>
+                  <td className="num">{row.summary.wfh}</td>
                   <td className="num">{row.summary.missed}</td>
                   <td className="num">{row.summary.leaveDays}</td>
                 </tr>
@@ -112,6 +107,7 @@ export default async function DashboardPage({
                 <td />
                 <td className="num">{hoursLabel(team.reduce((sum, row) => sum + row.summary.hours, 0))}</td>
                 <td className="num">{team.reduce((sum, row) => sum + row.summary.worked, 0)}</td>
+                <td className="num">{team.reduce((sum, row) => sum + row.summary.wfh, 0)}</td>
                 <td className="num">{team.reduce((sum, row) => sum + row.summary.missed, 0)}</td>
                 <td className="num">{team.reduce((sum, row) => sum + row.summary.leaveDays, 0)}</td>
               </tr>
@@ -151,6 +147,7 @@ function todayStatus(
   today: string,
 ): { text: string; tone: string } {
   const row = attendance.find((item) => item.day === today);
+  if (row?.wfh) return { text: "WFH", tone: "tone-wfh" };
   if (row?.clockOut) return { text: `${row.clockIn}–${row.clockOut}`, tone: "" };
   if (row) return { text: `In ${row.clockIn}`, tone: "tone-open" };
   const leave = leaves.find((item) => item.start <= today && today <= item.end);

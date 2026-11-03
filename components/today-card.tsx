@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { clockIn, clockOut } from "@/app/actions";
+import { clockIn, clockOut, markWfh } from "@/app/actions";
 import { Now } from "@/components/now";
 import type { Attendance } from "@/lib/db";
 import { formatHours, hoursBetween, longDate } from "@/lib/stats";
@@ -15,7 +15,7 @@ export function TodayCard({
   row: Attendance | null;
   returnTo: "/" | "/attendance" | "/report";
 }) {
-  const hours = row?.clockOut ? hoursBetween(row.clockIn, row.clockOut) : null;
+  const hours = row?.clockIn && row.clockOut ? hoursBetween(row.clockIn, row.clockOut) : null;
   return (
     <section className="today-card">
       <div>
@@ -24,14 +24,15 @@ export function TodayCard({
         </p>
         <p className="today-status">
           {!row && "Not clocked in yet"}
-          {row && !row.clockOut && (
+          {row?.wfh && "Working from home"}
+          {row && !row.wfh && !row.clockOut && (
             <>
-              Clocked in at <time dateTime={row.clockIn}>{row.clockIn}</time>
+              Clocked in at <time dateTime={row.clockIn ?? undefined}>{row.clockIn}</time>
             </>
           )}
-          {row && row.clockOut && (
+          {row && !row.wfh && row.clockOut && (
             <>
-              <time dateTime={row.clockIn}>{row.clockIn}</time>
+              <time dateTime={row.clockIn ?? undefined}>{row.clockIn}</time>
               {" – "}
               <time dateTime={row.clockOut}>{row.clockOut}</time>
               {hours != null && <span className="today-hours"> · {formatHours(hours)}</span>}
@@ -42,14 +43,27 @@ export function TodayCard({
       <div className="today-side">
         <Now />
         {!row && (
-          <form action={clockIn}>
-            <input type="hidden" name="return" value={returnTo} />
-            <button className="button primary" type="submit">
-              Clock in
-            </button>
-          </form>
+          <div className="today-actions">
+            <form action={markWfh}>
+              <input type="hidden" name="return" value={returnTo} />
+              <button className="button ghost" type="submit">
+                Work from home
+              </button>
+            </form>
+            <form action={clockIn}>
+              <input type="hidden" name="return" value={returnTo} />
+              <button className="button primary" type="submit">
+                Clock in
+              </button>
+            </form>
+          </div>
         )}
-        {row && !row.clockOut && (
+        {row?.wfh && (
+          <Link className="button ghost" href={`/attendance?edit=${row.id}#day-form`}>
+            Edit today
+          </Link>
+        )}
+        {row && !row.wfh && !row.clockOut && (
           <form action={clockOut}>
             <input type="hidden" name="return" value={returnTo} />
             <button className="button primary" type="submit">

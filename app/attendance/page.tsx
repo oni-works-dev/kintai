@@ -29,7 +29,7 @@ export default async function AttendancePage({
       <header className="page-head">
         <div>
           <h1>Attendance</h1>
-          <p>One in and out each day for {person.name}.</p>
+          <p>Clock office days for {person.name}. Work from home needs no hours.</p>
         </div>
       </header>
       <Banner code={query.edit && !editing ? "missing" : query.error} />
@@ -46,11 +46,12 @@ export default async function AttendancePage({
             ? {
                 id: editing.id,
                 day: editing.day,
-                clockIn: editing.clockIn,
+                wfh: editing.wfh,
+                clockIn: editing.clockIn ?? "",
                 clockOut: editing.clockOut ?? "",
                 note: editing.note,
               }
-            : { day: prefill, clockIn: "09:00", clockOut: "", note: "" }
+            : { day: prefill, wfh: false, clockIn: "09:00", clockOut: "", note: "" }
         }
       />
       <section className="card log-card">
@@ -67,20 +68,26 @@ export default async function AttendancePage({
         ) : (
           <ul className="log">
             {rows.map((row) => {
-              const hours = row.clockOut ? hoursBetween(row.clockIn, row.clockOut) : null;
+              const hours = row.clockIn && row.clockOut ? hoursBetween(row.clockIn, row.clockOut) : null;
               return (
                 <li key={row.id} className={editing?.id === row.id ? "is-editing" : undefined}>
                   <div>
                     <strong>{shortDate(row.day)}</strong>
                     <span>
-                      <time dateTime={row.clockIn}>{row.clockIn}</time>
-                      {" – "}
-                      {row.clockOut ? (
-                        <time dateTime={row.clockOut}>{row.clockOut}</time>
+                      {row.wfh ? (
+                        "Work from home"
                       ) : (
-                        <span className="open-word">still open</span>
+                        <>
+                          <time dateTime={row.clockIn ?? undefined}>{row.clockIn}</time>
+                          {" – "}
+                          {row.clockOut ? (
+                            <time dateTime={row.clockOut}>{row.clockOut}</time>
+                          ) : (
+                            <span className="open-word">still open</span>
+                          )}
+                          {hours != null && ` · ${formatHours(hours)}`}
+                        </>
                       )}
-                      {hours != null && ` · ${formatHours(hours)}`}
                     </span>
                     {row.note && <em>{row.note}</em>}
                   </div>

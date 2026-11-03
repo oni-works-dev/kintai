@@ -111,6 +111,25 @@ describe("summarize", () => {
     assert.equal(kindOf(summary.days, "2026-11-05"), "today");
   });
 
+  it("counts a work-from-home day without hours", () => {
+    const summary = summarize({
+      month: "2026-11",
+      today: "2026-11-05",
+      attendance: [
+        { id: 1, day: "2026-11-02", wfh: true, clockIn: null, clockOut: null },
+        { id: 2, day: "2026-11-03", clockIn: "09:00", clockOut: "17:00" },
+      ],
+      leaves: [],
+    });
+    assert.equal(summary.hours, 8);
+    assert.equal(summary.worked, 1);
+    assert.equal(summary.wfh, 1);
+    assert.equal(summary.missed, 1);
+    assert.equal(kindOf(summary.days, "2026-11-02"), "wfh");
+    assert.equal(kindOf(summary.days, "2026-11-03"), "worked");
+    assert.equal(kindOf(summary.days, "2026-11-04"), "missed");
+  });
+
   it("buckets weekly hours and does not double-count a shared leave day", () => {
     const weeks = weekSeries(
       [

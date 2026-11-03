@@ -11,7 +11,8 @@ export const LEAVE_LABEL: Record<LeaveType, string> = {
 export type AttendanceInput = {
   id: number;
   day: string;
-  clockIn: string;
+  wfh?: boolean;
+  clockIn: string | null;
   clockOut: string | null;
 };
 
@@ -22,7 +23,7 @@ export type LeaveInput = {
   end: string;
 };
 
-export type DayKind = "worked" | "open" | "leave" | "missed" | "off" | "future" | "today";
+export type DayKind = "worked" | "wfh" | "open" | "leave" | "missed" | "off" | "future" | "today";
 
 export type DayFact = {
   iso: string;
@@ -201,6 +202,7 @@ export function summarize(input: {
 }): {
   hours: number;
   worked: number;
+  wfh: number;
   missed: number;
   leaveDays: number;
   days: DayFact[];
@@ -214,6 +216,7 @@ export function summarize(input: {
     const weekend = parseISODate(iso).getDay() % 6 === 0;
     let kind: DayKind;
     if (iso > input.today) kind = leave ? "leave" : "future";
+    else if (row?.wfh) kind = "wfh";
     else if (row?.clockOut) kind = "worked";
     else if (row) kind = "open";
     else if (leave) kind = "leave";
@@ -224,7 +227,7 @@ export function summarize(input: {
       iso,
       inMonth: iso >= start && iso <= end,
       kind,
-      hours: row?.clockOut ? hoursBetween(row.clockIn, row.clockOut) : null,
+      hours: row?.wfh || !row?.clockIn || !row.clockOut ? null : hoursBetween(row.clockIn, row.clockOut),
       leaveType: leave?.type ?? null,
       leaveId: leave?.id ?? null,
       attendanceId: row?.id ?? null,
@@ -241,7 +244,8 @@ export function summarize(input: {
 
   return {
     hours: roundHours(inMonth.reduce((sum, day) => sum + (day.hours ?? 0), 0)),
-    worked: inMonth.filter((day) => day.attendanceId != null).length,
+    worked: inMonth.filter((day) => day.kind === "worked" || day.kind === "open").length,
+    wfh: inMonth.filter((day) => day.kind === "wfh").length,
     missed: inMonth.filter((day) => day.kind === "missed").length,
     leaveDays: leaveDates.size,
     days,
@@ -254,7 +258,7 @@ export function weekSeries(attendance: AttendanceInput[], anchor: string, count 
   const buckets = new Map<string, number>();
   for (let index = 0; index < count; index += 1) buckets.set(addDays(start, index * 7), 0);
   for (const row of attendance) {
-    if (!row.clockOut) continue;
+    if (row.wfh || !row.clockIn || !row.clockOut) continue;
     const key = weekStart(row.day);
     if (!buckets.has(key)) continue;
     const hours = hoursBetween(row.clockIn, row.clockOut);

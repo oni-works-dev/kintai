@@ -94,10 +94,11 @@ export async function clockIn(formData: FormData) {
   const person = await activePerson();
   const today = todayISO();
   const existing = attendanceOn(person.id, today);
+  if (existing?.wfh) fail(dest, "already-wfh");
   if (existing?.clockOut) fail(dest, "already-out");
   if (existing) fail(dest, "already-in");
   const failed = catchUnique(() => {
-    insertAttendance({ personId: person.id, day: today, clockIn: currentTime(), clockOut: null, note: "" });
+    insertAttendance({ personId: person.id, day: today, wfh: false, clockIn: currentTime(), clockOut: null, note: "" });
   });
   if (failed) fail(dest, failed.error);
   refresh();
@@ -109,7 +110,7 @@ export async function clockOut(formData: FormData) {
   const person = await activePerson();
   const today = todayISO();
   const existing = attendanceOn(person.id, today);
-  if (!existing) fail(dest, "not-in");
+  if (!existing || existing.wfh || !existing.clockIn) fail(dest, "not-in");
   if (existing.clockOut) fail(dest, "already-out");
   const clockOut = currentTime();
   if (hoursBetween(existing.clockIn, clockOut) == null) fail(dest, "bad-time");
@@ -118,18 +119,34 @@ export async function clockOut(formData: FormData) {
   redirect(dest);
 }
 
+export async function markWfh(formData: FormData) {
+  const dest = destination(formData);
+  const person = await activePerson();
+  const today = todayISO();
+  const existing = attendanceOn(person.id, today);
+  if (existing?.wfh) fail(dest, "already-wfh");
+  if (existing) fail(dest, "already-in");
+  const failed = catchUnique(() => {
+    insertAttendance({ personId: person.id, day: today, wfh: true, clockIn: null, clockOut: null, note: "" });
+  });
+  if (failed) fail(dest, failed.error);
+  refresh();
+  redirect(dest);
+}
+
 export async function saveAttendance(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const idRaw = String(formData.get("id") ?? "");
   const id = idRaw ? Number(idRaw) : null;
   const day = parseDay(String(formData.get("day") ?? ""));
-  const clockInTime = parseTime(String(formData.get("clockIn") ?? ""));
-  const outRaw = String(formData.get("clockOut") ?? "").trim();
+  const wfh = String(formData.get("place") ?? "") === "wfh";
+  const clockInTime = wfh ? null : parseTime(String(formData.get("clockIn") ?? ""));
+  const outRaw = wfh ? "" : String(formData.get("clockOut") ?? "").trim();
   const clockOut = outRaw ? parseTime(outRaw) : null;
   const note = String(formData.get("note") ?? "").trim();
 
   if (!day) return { error: "bad-date" };
-  if (!clockInTime || (outRaw && !clockOut)) return { error: "bad-time" };
-  if (clockOut && hoursBetween(clockInTime, clockOut) == null) return { error: "bad-time" };
+  if (!wfh && (!clockInTime || (outRaw && !clockOut))) return { error: "bad-time" };
+  if (clockInTime && clockOut && hoursBetween(clockInTime, clockOut) == null) return { error: "bad-time" };
   if (note.length > 200) return { error: "note" };
   if (day > todayISO()) return { error: "future" };
   if (id != null && (!Number.isInteger(id) || id <= 0)) return { error: "missing" };
@@ -143,8 +160,8 @@ export async function saveAttendance(_prev: ActionState, formData: FormData): Pr
   }
 
   const failed = catchUnique(() => {
-    if (id != null) updateAttendance({ id, personId: person.id, day, clockIn: clockInTime, clockOut, note });
-    else insertAttendance({ personId: person.id, day, clockIn: clockInTime, clockOut, note });
+    if (id != null) updateAttendance({ id, personId: person.id, day, wfh, clockIn: clockInTime, clockOut, note });
+    else insertAttendance({ personId: person.id, day, wfh, clockIn: clockInTime, clockOut, note });
   });
   if (failed) return failed;
   refresh();

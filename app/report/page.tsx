@@ -64,8 +64,9 @@ export default async function ReportPage({
         returnTo="/report"
       />
       <section className="stats">
-        <Stat label="Hours" value={summary.hours === 0 ? "0h" : formatHours(summary.hours)} hint="Completed clock-ins" />
-        <Stat label="Worked" value={String(summary.worked)} hint="Days with a clock-in" />
+        <Stat label="Hours" value={summary.hours === 0 ? "0h" : formatHours(summary.hours)} hint="Office days only" />
+        <Stat label="Worked" value={String(summary.worked)} hint="Office days with a clock-in" />
+        <Stat label="WFH" value={String(summary.wfh)} hint="Work from home, no hours" />
         <Stat label="Missed" value={String(summary.missed)} hint="Past weekdays with nothing logged" />
         <Stat label="Leave" value={String(summary.leaveDays)} hint="Calendar days, including planned" />
       </section>

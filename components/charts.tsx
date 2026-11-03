@@ -14,6 +14,7 @@ function axisLabel(iso: string): string {
 function dayLabel(day: DayFact): string {
   const name = longDate(day.iso);
   if (day.kind === "worked" && day.hours != null) return `${name}, worked ${formatHours(day.hours)}`;
+  if (day.kind === "wfh") return `${name}, work from home`;
   if (day.kind === "open") return `${name}, clocked in, not clocked out`;
   if (day.kind === "leave" && day.leaveType) return `${name}, ${LEAVE_LABEL[day.leaveType]}`;
   if (day.kind === "missed") return `${name}, nothing logged`;
@@ -43,7 +44,7 @@ export function MonthCalendar({ days, today }: { days: DayFact[]; today: string 
       </div>
       <div className="month">
         {days.map((day) => {
-          const marked = day.inMonth && (day.kind === "worked" || day.kind === "open" || day.kind === "leave" || day.kind === "missed");
+          const marked = day.inMonth && (day.kind === "worked" || day.kind === "wfh" || day.kind === "open" || day.kind === "leave" || day.kind === "missed");
           const className = `cell${day.inMonth ? ` kind-${day.kind}` : " out"}${day.iso === today ? " is-today" : ""}`;
           const inner = (
             <>
@@ -69,6 +70,9 @@ export function MonthCalendar({ days, today }: { days: DayFact[]; today: string 
       <p className="legend">
         <span>
           <i className="mark worked" /> Worked
+        </span>
+        <span>
+          <i className="mark wfh" /> WFH
         </span>
         <span>
           <i className="mark open" /> Open

@@ -19,13 +19,15 @@ function FieldError({ state }: { state: ActionState }) {
 export function AttendanceForm({
   initial,
 }: {
-  initial: { id?: number; day: string; clockIn: string; clockOut: string; note: string };
+  initial: { id?: number; day: string; wfh: boolean; clockIn: string; clockOut: string; note: string };
 }) {
   const [state, action, pending] = useActionState(saveAttendance, null);
   const [day, setDay] = useState(initial.day);
+  const [place, setPlace] = useState(initial.wfh ? "wfh" : "office");
   const [clockIn, setClockIn] = useState(initial.clockIn);
   const [clockOut, setClockOut] = useState(initial.clockOut);
   const [note, setNote] = useState(initial.note);
+  const home = place === "wfh";
   return (
     <form id="day-form" action={action} className="card form-card">
       <h2>{initial.id ? "Edit day" : "Add a day"}</h2>
@@ -33,8 +35,21 @@ export function AttendanceForm({
       {initial.id != null && <input type="hidden" name="id" value={initial.id} />}
       <div className="fields">
         <DateField label="Date" name="day" value={day} onChange={setDay} />
-        <TimeField label="In" name="clockIn" value={clockIn} onChange={setClockIn} />
-        <TimeField label="Out" name="clockOut" value={clockOut} onChange={setClockOut} allowEmpty />
+        <ChoiceField
+          label="Where"
+          name="place"
+          value={place}
+          options={[
+            { value: "office", label: "Office" },
+            { value: "wfh", label: "Work from home" },
+          ]}
+          onChange={(next) => {
+            setPlace(next);
+            if (next === "office" && !clockIn) setClockIn("09:00");
+          }}
+        />
+        {!home && <TimeField label="In" name="clockIn" value={clockIn} onChange={setClockIn} />}
+        {!home && <TimeField label="Out" name="clockOut" value={clockOut} onChange={setClockOut} allowEmpty />}
         <TextField
           className="grow"
           label="Note"
@@ -45,7 +60,7 @@ export function AttendanceForm({
           placeholder="Optional"
         />
         <div className="form-actions">
-          <button className="button primary" type="submit" disabled={pending || !day || !clockIn}>
+          <button className="button primary" type="submit" disabled={pending || !day || (!home && !clockIn)}>
             {pending ? "Saving..." : initial.id ? "Save changes" : "Add day"}
           </button>
           {initial.id != null && (

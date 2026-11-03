@@ -12,6 +12,9 @@
   --miss: #8c3d32;
   --miss-soft: #f8e7e3;
   --miss-ink: #6e3028;
+  --wfh: #2f5d73;
+  --wfh-soft: #e3eef2;
+  --wfh-ink: #1e4556;
   --serif: "Iowan Old Style", Palatino, "Palatino Linotype", "Times New Roman", serif;
   --sans: "Avenir Next", "Segoe UI", sans-serif;
   color-scheme: light;
@@ -273,6 +276,8 @@ body {
   gap: 8px;
 }
 
+.today-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
 .now {
   margin: 0;
   min-height: 1.4em;
@@ -282,7 +287,7 @@ body {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 12px;
 }
 
@@ -358,7 +363,7 @@ body {
 
 .team-wrap { overflow-x: auto; }
 
-.team { width: 100%; border-collapse: collapse; min-width: 640px; }
+.team { width: 100%; border-collapse: collapse; min-width: 720px; }
 
 .team th,
 .team td {
@@ -403,6 +408,7 @@ body {
 .team tfoot td { font-weight: 650; font-variant-numeric: tabular-nums; }
 
 .tone-open { color: var(--ok); }
+.tone-wfh { color: var(--wfh-ink); }
 .tone-leave { color: var(--leave-ink); }
 .tone-miss { color: var(--miss); }
 .tone-quiet { color: var(--muted); }
@@ -691,6 +697,7 @@ a.cell:hover { filter: brightness(0.97); }
 .cell.kind-leave { background: var(--leave-soft); }
 .cell.kind-worked,
 .cell.kind-open { background: var(--ok-soft); }
+.cell.kind-wfh { background: var(--wfh-soft); }
 .cell.kind-off .num,
 .cell.kind-future .num { color: var(--muted); }
 
@@ -705,6 +712,7 @@ a.cell:hover { filter: brightness(0.97); }
 
 .mark.empty { visibility: hidden; }
 .mark.worked { background: var(--ok); border-radius: 99px; }
+.mark.wfh { background: var(--wfh); border-radius: 2px; }
 .mark.open { box-shadow: inset 0 0 0 1.5px var(--ok); border-radius: 99px; }
 .mark.leave { background: var(--leave); border-radius: 2px; }
 .mark.missed { box-shadow: inset 0 0 0 1.5px var(--miss); border-radius: 99px; }

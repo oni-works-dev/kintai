@@ -12,7 +12,8 @@ export type Attendance = {
   id: number;
   personId: number;
   day: string;
-  clockIn: string;
+  wfh: boolean;
+  clockIn: string | null;
   clockOut: string | null;
   note: string;
 };
@@ -62,37 +63,21 @@ function ensureSchema(database: DatabaseSync) {
 
   const attendanceCols = columnNames(database, "attendance");
   if (attendanceCols.length === 0) {
-    database.exec(`
-      CREATE TABLE attendance (
-        id INTEGER PRIMARY KEY,
-        person_id INTEGER NOT NULL REFERENCES people(id),
-        day TEXT NOT NULL,
-        clock_in TEXT NOT NULL,
-        clock_out TEXT,
-        note TEXT NOT NULL DEFAULT '',
-        UNIQUE (person_id, day)
-      );
-    `);
-  } else if (!attendanceCols.includes("person_id")) {
+    database.exec(`CREATE TABLE attendance (${ATTENDANCE_DDL});`);
+  } else if (!attendanceCols.includes("person_id") || !attendanceCols.includes("wfh")) {
     database.exec("BEGIN");
     database.exec("DROP TABLE IF EXISTS attendance_next");
-    database.exec(`
-      CREATE TABLE attendance_next (
-        id INTEGER PRIMARY KEY,
-        person_id INTEGER NOT NULL REFERENCES people(id),
-        day TEXT NOT NULL,
-        clock_in TEXT NOT NULL,
-        clock_out TEXT,
-        note TEXT NOT NULL DEFAULT '',
-        UNIQUE (person_id, day)
-      );
-    `);
+    database.exec(`CREATE TABLE attendance_next (${ATTENDANCE_DDL});`);
+    const legacy = !attendanceCols.includes("person_id");
     database
       .prepare(
-        `INSERT INTO attendance_next (id, person_id, day, clock_in, clock_out, note)
-         SELECT id, ?, day, clock_in, clock_out, note FROM attendance`,
+        legacy
+          ? `INSERT INTO attendance_next (id, person_id, day, wfh, clock_in, clock_out, note)
+             SELECT id, ?, 0, day, clock_in, clock_out, note FROM attendance`
+          : `INSERT INTO attendance_next (id, person_id, day, wfh, clock_in, clock_out, note)
+             SELECT id, person_id, 0, day, clock_in, clock_out, note FROM attendance`,
       )
-      .run(personId);
+      .run(...(legacy ? [personId] : []));
     database.exec("DROP TABLE attendance");
     database.exec("ALTER TABLE attendance_next RENAME TO attendance");
     database.exec("COMMIT");
@@ -135,16 +120,30 @@ function ensureSchema(database: DatabaseSync) {
   }
 }
 
+const ATTENDANCE_DDL = `
+  id INTEGER PRIMARY KEY,
+  person_id INTEGER NOT NULL REFERENCES people(id),
+  day TEXT NOT NULL,
+  wfh INTEGER NOT NULL DEFAULT 0 CHECK (wfh IN (0, 1)),
+  clock_in TEXT,
+  clock_out TEXT,
+  note TEXT NOT NULL DEFAULT '',
+  UNIQUE (person_id, day),
+  CHECK (
+    (wfh = 1 AND clock_in IS NULL AND clock_out IS NULL) OR
+    (wfh = 0 AND clock_in IS NOT NULL)
+  )
+`;
+
 function openDatabase(): DatabaseSync {
   const dir = path.join(process.cwd(), "data");
   fs.mkdirSync(dir, { recursive: true });
-  const database = new DatabaseSync(path.join(dir, "kintai.sqlite"));
-  ensureSchema(database);
-  return database;
+  return new DatabaseSync(path.join(dir, "kintai.sqlite"));
 }
 
 export function getDb(): DatabaseSync {
   globalForDb.kintaiDb ??= openDatabase();
+  ensureSchema(globalForDb.kintaiDb);
   return globalForDb.kintaiDb;
 }
 
@@ -153,12 +152,14 @@ function rowValue(row: Record<string, unknown>, key: string): unknown {
 }
 
 function mapAttendance(row: Record<string, unknown>): Attendance {
+  const clockIn = rowValue(row, "clock_in");
   const clockOut = rowValue(row, "clock_out");
   return {
     id: Number(rowValue(row, "id")),
     personId: Number(rowValue(row, "person_id")),
     day: String(rowValue(row, "day")),
-    clockIn: String(rowValue(row, "clock_in")),
+    wfh: Number(rowValue(row, "wfh")) === 1,
+    clockIn: clockIn == null ? null : String(clockIn),
     clockOut: clockOut == null ? null : String(clockOut),
     note: String(rowValue(row, "note") ?? ""),
   };
@@ -186,7 +187,7 @@ function one(sql: string, ...params: (string | number | null)[]): Record<string,
   return row ? (row as Record<string, unknown>) : null;
 }
 
-const ATTENDANCE_COLUMNS = "id, person_id, day, clock_in, clock_out, note";
+const ATTENDANCE_COLUMNS = "id, person_id, day, wfh, clock_in, clock_out, note";
 const LEAVE_COLUMNS = "id, person_id, type, start_date, end_date, note";
 
 export function allPeople(): Person[] {
@@ -220,7 +221,7 @@ export function openPunches(): OpenPunch[] {
     `SELECT attendance.id, attendance.person_id, attendance.day, people.name AS person_name
      FROM attendance
      JOIN people ON people.id = attendance.person_id
-     WHERE attendance.clock_out IS NULL
+     WHERE attendance.wfh = 0 AND attendance.clock_out IS NULL
      ORDER BY attendance.day`,
   ).map((row) => ({
     id: Number(row.id),
@@ -251,16 +252,16 @@ export function getLeave(id: number): Leave | null {
 
 export function insertAttendance(row: Omit<Attendance, "id">): void {
   getDb()
-    .prepare("INSERT INTO attendance (person_id, day, clock_in, clock_out, note) VALUES (?, ?, ?, ?, ?)")
-    .run(row.personId, row.day, row.clockIn, row.clockOut, row.note);
+    .prepare("INSERT INTO attendance (person_id, day, wfh, clock_in, clock_out, note) VALUES (?, ?, ?, ?, ?, ?)")
+    .run(row.personId, row.day, row.wfh ? 1 : 0, row.clockIn, row.clockOut, row.note);
 }
 
 export function updateAttendance(row: Attendance): void {
   getDb()
     .prepare(
-      "UPDATE attendance SET day = ?, clock_in = ?, clock_out = ?, note = ? WHERE id = ? AND person_id = ?",
+      "UPDATE attendance SET day = ?, wfh = ?, clock_in = ?, clock_out = ?, note = ? WHERE id = ? AND person_id = ?",
     )
-    .run(row.day, row.clockIn, row.clockOut, row.note, row.id, row.personId);
+    .run(row.day, row.wfh ? 1 : 0, row.clockIn, row.clockOut, row.note, row.id, row.personId);
 }
 
 export function deleteAttendance(id: number, personId: number): void {
