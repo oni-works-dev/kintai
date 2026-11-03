@@ -60,27 +60,115 @@ body {
 .top {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 28px;
 }
 
-.who {
+.top-end {
   display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  align-items: end;
+  align-items: center;
+  gap: 8px;
   margin-left: auto;
+  flex-wrap: wrap;
 }
 
-.who form { display: flex; gap: 8px; align-items: end; }
+.profile { position: relative; }
 
-.who .field { min-width: 9rem; }
+.profile-button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #f6f1e7;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
 
-.who .button { min-height: 42px; }
+.profile-button::-webkit-details-marker { display: none; }
 
-.who .banner { margin: 0; }
+.profile-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 5;
+  width: 16rem;
+  padding: 14px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+}
+
+.profile-name { display: flex; gap: 8px; }
+
+.profile-name .field-input { height: 40px; }
+
+.profile-name .button { height: 40px; padding: 0 12px; }
+
+.profile .banner { margin: 10px 0 0; }
+
+.profile-label {
+  margin: 14px 0 4px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.profile-switch button {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  padding: 8px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+}
+
+.profile-switch button[disabled] { color: var(--muted); cursor: default; }
+
+.profile-switch button:not([disabled]):hover { background: var(--ok-soft); }
+
+.gate {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+}
+
+.gate-card { width: min(24rem, 100%); }
+
+.gate h1 {
+  margin: 16px 0 8px;
+  font-family: var(--serif);
+  font-size: clamp(2.4rem, 6vw, 3.2rem);
+  font-weight: 560;
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+}
+
+.gate p { margin: 0; color: var(--muted); }
+
+.gate-people { display: grid; gap: 8px; margin-top: 22px; }
+
+.gate-people button {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 1.05rem;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card);
+  cursor: pointer;
+}
+
+.gate-people button:hover { border-color: var(--ok); }
 
 .brand {
   display: flex;
@@ -113,9 +201,12 @@ body {
 .nav { display: flex; gap: 4px; flex-wrap: wrap; }
 
 .nav a {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
   text-decoration: none;
   color: var(--muted);
-  padding: 8px 12px;
+  padding: 0 12px;
   border-radius: 999px;
 }
 
@@ -751,5 +842,6 @@ a.cell:hover { filter: brightness(0.97); }
   .today-side,
   .month-nav { align-items: flex-start; }
   .top { flex-direction: column; align-items: flex-start; }
-  .who { margin-left: 0; }
+  .top-end { width: 100%; margin-left: 0; justify-content: space-between; align-items: flex-start; flex-wrap: nowrap; }
+  .nav { flex: 1; }
 }

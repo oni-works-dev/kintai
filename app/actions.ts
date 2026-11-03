@@ -74,7 +74,7 @@ export async function selectPerson(formData: FormData) {
   const id = Number(formData.get("person"));
   if (!allPeople().some((person) => person.id === id)) redirect("/");
   const jar = await cookies();
-  jar.set("kintai-person", String(id), { path: "/", sameSite: "lax", httpOnly: true });
+  jar.set("kintai-person", String(id), { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 365 });
   refresh();
   redirect(safeNext(String(formData.get("next") ?? "")));
 }

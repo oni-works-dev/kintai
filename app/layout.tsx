@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Suspense, type ReactNode } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/nav";
-import { Who } from "@/components/who";
-import { activePerson } from "@/lib/active";
+import { Gate, Profile } from "@/components/who";
+import { chosenPerson } from "@/lib/active";
 import { allPeople, openPunches } from "@/lib/db";
 import { longDate, todayISO } from "@/lib/stats";
 import "./globals.css";
@@ -17,7 +17,18 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const person = await activePerson();
+  const person = await chosenPerson();
+  const people = allPeople();
+  if (!person) {
+    return (
+      <html lang="en">
+        <body>
+          <Gate people={people} />
+        </body>
+      </html>
+    );
+  }
+
   const today = todayISO();
   const stale = openPunches().filter((row) => row.day < today);
 
@@ -38,10 +49,12 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
                 <small>Attendance and leave</small>
               </span>
             </Link>
-            <Suspense>
-              <Who people={allPeople()} active={person} />
-            </Suspense>
-            <Nav />
+            <div className="top-end">
+              <Nav />
+              <Suspense>
+                <Profile people={people} active={person} />
+              </Suspense>
+            </div>
           </header>
           {stale.length > 0 && (
             <div className="banners">
