@@ -1,67 +1,69 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
-import {
-  formatHours,
-  LEAVE_LABEL,
-  longDate,
-  type DayFact,
-  type LeaveType,
-} from "@/lib/stats";
+import { formatHours, LEAVE_LABEL, type LeaveType } from "@/lib/stats";
+import type { Bar, CalendarCell } from "@/lib/board";
 
 function axisLabel(iso: string): string {
   return `${Number(iso.slice(5, 7))}/${Number(iso.slice(8))}`;
 }
 
-function dayLabel(day: DayFact): string {
-  const name = longDate(day.iso);
-  if (day.kind === "worked" && day.hours != null) return `${name}, worked ${formatHours(day.hours)}`;
-  if (day.kind === "wfh") return `${name}, work from home`;
-  if (day.kind === "open") return `${name}, clocked in, not clocked out`;
-  if (day.kind === "leave" && day.leaveType) return `${name}, ${LEAVE_LABEL[day.leaveType]}`;
-  if (day.kind === "missed") return `${name}, nothing logged`;
-  if (day.kind === "off") return `${name}, weekend`;
-  if (day.kind === "today") return `${name}, today`;
-  return name;
-}
+const MARKED = new Set(["worked", "wfh", "open", "leave", "missed"]);
 
-function hrefFor(day: DayFact): string | null {
-  if (!day.inMonth) return null;
-  if (day.kind === "leave" && day.leaveId) return `/leave?edit=${day.leaveId}#leave-form`;
-  if (day.kind === "future" || day.kind === "off") return null;
-  if (day.attendanceId) return `/attendance?edit=${day.attendanceId}#day-form`;
-  return `/attendance?day=${day.iso}`;
-}
-
-export function MonthCalendar({ days, today }: { days: DayFact[]; today: string }) {
+export function CalendarGrid({
+  cells,
+  today,
+  picked,
+  legend,
+}: {
+  cells: CalendarCell[];
+  today: string;
+  picked?: string | null;
+  legend: "person" | "team";
+}) {
   return (
-    <section className="card calendar">
-      <header className="card-head">
-        <h2>Calendar</h2>
-      </header>
+    <>
       <div className="dow" aria-hidden="true">
         {["M", "T", "W", "T", "F", "S", "S"].map((label, index) => (
           <span key={`${label}-${index}`}>{label}</span>
         ))}
       </div>
       <div className="month">
-        {days.map((day) => {
-          const marked = day.inMonth && (day.kind === "worked" || day.kind === "wfh" || day.kind === "open" || day.kind === "leave" || day.kind === "missed");
-          const className = `cell${day.inMonth ? ` kind-${day.kind}` : " out"}${day.iso === today ? " is-today" : ""}`;
+        {cells.map((cell) => {
+          const className = [
+            "cell",
+            cell.inMonth ? (cell.heat != null ? "heat" : `kind-${cell.kind}`) : "out",
+            cell.iso === today ? "is-today" : "",
+            cell.iso === picked ? "is-picked" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+          const style = cell.heat != null ? ({ "--p": String(cell.heat) } as CSSProperties) : undefined;
           const inner = (
             <>
-              <span className="num">{Number(day.iso.slice(-2))}</span>
-              <span className={marked ? `mark ${day.kind}` : "mark empty"} />
+              <span className="num">{Number(cell.iso.slice(-2))}</span>
+              {cell.foot != null ? (
+                <span className="foot">{cell.foot}</span>
+              ) : (
+                <span className={MARKED.has(cell.kind) ? `mark ${cell.kind}` : "mark empty"} />
+              )}
             </>
           );
-          const href = hrefFor(day);
-          if (!href) {
+          if (!cell.href) {
             return (
-              <span key={day.iso} className={className} aria-label={dayLabel(day)}>
+              <span key={cell.iso} className={className} style={style} aria-label={cell.aria}>
                 {inner}
               </span>
             );
           }
           return (
-            <Link key={day.iso} className={className} href={href} aria-label={dayLabel(day)}>
+            <Link
+              key={cell.iso}
+              className={className}
+              style={style}
+              href={cell.href}
+              aria-label={cell.aria}
+              aria-current={cell.iso === picked ? "date" : undefined}
+            >
               {inner}
             </Link>
           );
@@ -69,13 +71,13 @@ export function MonthCalendar({ days, today }: { days: DayFact[]; today: string 
       </div>
       <p className="legend">
         <span>
-          <i className="mark worked" /> Worked
+          <i className="mark worked" /> Office
         </span>
         <span>
           <i className="mark wfh" /> WFH
         </span>
         <span>
-          <i className="mark open" /> Open
+          <i className="mark open" /> In office
         </span>
         <span>
           <i className="mark leave" /> Leave
@@ -83,51 +85,78 @@ export function MonthCalendar({ days, today }: { days: DayFact[]; today: string 
         <span>
           <i className="mark missed" /> Missed
         </span>
+        {legend === "team" && <span>Count is people. Deeper green is a fuller office.</span>}
       </p>
+    </>
+  );
+}
+
+export function Bars({
+  title,
+  range,
+  rows,
+  unit = "",
+  ceiling,
+}: {
+  title: string;
+  range?: string;
+  rows: Bar[];
+  unit?: "" | "h" | "%";
+  ceiling?: number;
+}) {
+  const max = ceiling ?? Math.max(1, ...rows.map((row) => row.value));
+  const summary = rows.map((row) => row.text).join(", ");
+  return (
+    <section className="card">
+      <header className="card-head">
+        <h2>{title}</h2>
+        {range && <p>{range}</p>}
+      </header>
+      {rows.length === 0 ? (
+        <p className="muted">Nothing in this window.</p>
+      ) : (
+        <div className="bars" style={{ gridTemplateColumns: `repeat(${rows.length}, minmax(0, 1fr))` }} role="img" aria-label={summary}>
+          {rows.map((row) => (
+            <div className="bar" key={row.key}>
+              <span className="bar-value">{row.value > 0 ? `${unit === "h" ? Math.round(row.value * 10) / 10 : Math.round(row.value)}${unit}` : ""}</span>
+              <span className="bar-track">
+                <span className="bar-fill" style={{ height: row.value > 0 ? `${Math.max(4, (row.value / max) * 100)}%` : "0%" }} />
+              </span>
+              <span className="bar-label">{row.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
 export function WeekChart({
   weeks,
+  detail,
 }: {
   weeks: { start: string; label: string; hours: number }[];
+  detail?: string;
 }) {
-  const max = Math.max(8, ...weeks.map((week) => week.hours));
-  const summary = weeks.map((week) => `${week.label} ${formatHours(week.hours)}`).join(", ");
+  const dates = weeks.length ? `${weeks[0].label} – ${weeks.at(-1)?.label}` : undefined;
+  const ceiling = Math.max(8, ...weeks.map((week) => week.hours));
   return (
-    <section className="card">
-      <header className="card-head">
-        <h2>Hours by week</h2>
-        <p>
-          {weeks[0]?.label} – {weeks.at(-1)?.label}
-        </p>
-      </header>
-      <div className="bars" role="img" aria-label={summary}>
-        {weeks.map((week) => (
-          <div className="bar" key={week.start}>
-            <span className="bar-value">{week.hours > 0 ? `${Math.round(week.hours * 10) / 10}h` : ""}</span>
-            <span className="bar-track">
-              <span
-                className="bar-fill"
-                style={{ height: week.hours > 0 ? `${Math.max(6, (week.hours / max) * 100)}%` : "0%" }}
-              />
-            </span>
-            <span className="bar-label">{axisLabel(week.start)}</span>
-          </div>
-        ))}
-      </div>
-    </section>
+    <Bars
+      title="Hours by week"
+      range={dates && detail ? `${dates} · ${detail}` : dates}
+      ceiling={ceiling}
+      unit="h"
+      rows={weeks.map((week) => ({
+        key: week.start,
+        label: axisLabel(week.start),
+        value: week.hours,
+        text: `${week.label} ${formatHours(week.hours)}`,
+      }))}
+    />
   );
 }
 
-export function LeaveChart({
-  rows,
-  year,
-}: {
-  rows: { type: LeaveType; days: number }[];
-  year: string;
-}) {
+export function LeaveChart({ rows, year }: { rows: { type: LeaveType; days: number }[]; year: string }) {
   const visible = rows.filter((row) => row.days > 0);
   const max = Math.max(1, ...visible.map((row) => row.days));
   return (
@@ -136,7 +165,7 @@ export function LeaveChart({
         <h2>Leave in {year}</h2>
       </header>
       {visible.length === 0 ? (
-        <p className="muted">No leave this year.</p>
+        <p className="muted">No leave in this range.</p>
       ) : (
         <ul className="hbars">
           {visible.map((row) => (

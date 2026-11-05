@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { seedSamples } from "@/lib/sample";
 import { isLeaveType, type LeaveType } from "@/lib/stats";
 
 export type Person = {
@@ -144,7 +145,13 @@ function openDatabase(): DatabaseSync {
 export function getDb(): DatabaseSync {
   globalForDb.kintaiDb ??= openDatabase();
   ensureSchema(globalForDb.kintaiDb);
+  seedSamples(globalForDb.kintaiDb);
   return globalForDb.kintaiDb;
+}
+
+export function sampleCount(): number {
+  const row = one("SELECT COUNT(*) AS n FROM attendance WHERE note = 'sample'");
+  return Number(row?.n ?? 0);
 }
 
 function rowValue(row: Record<string, unknown>, key: string): unknown {

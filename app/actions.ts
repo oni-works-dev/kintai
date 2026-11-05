@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { activePerson } from "@/lib/active";
+import { chosenPerson } from "@/lib/active";
 import type { ErrorCode } from "@/lib/errors";
 import {
   allLeaves,
@@ -47,12 +47,16 @@ function fail(path: string, code: ErrorCode): never {
   redirect(`${path}${join}error=${code}`);
 }
 
+async function requirePerson() {
+  const person = await chosenPerson();
+  if (!person) redirect("/");
+  return person;
+}
+
 function safeNext(value: string): string {
-  if (value === "/" || value === "/attendance" || value === "/leave" || value === "/report") return value;
-  if (/^\/\?month=\d{4}-\d{2}$/.test(value)) return value;
-  if (/^\/report\?month=\d{4}-\d{2}$/.test(value)) return value;
-  if (/^\/attendance\?edit=\d+$/.test(value)) return value;
-  if (/^\/leave\?edit=\d+$/.test(value)) return value;
+  const path = value.split("#")[0];
+  if (path === "/" || path.startsWith("/?")) return path;
+  if (/^\/(attendance|leave|report)(\?.*)?$/.test(path)) return path;
   return "/";
 }
 
@@ -74,7 +78,7 @@ export async function selectPerson(formData: FormData) {
   const id = Number(formData.get("person"));
   if (!allPeople().some((person) => person.id === id)) redirect("/");
   const jar = await cookies();
-  jar.set("kintai-person", String(id), { path: "/", sameSite: "lax", httpOnly: true, maxAge: 60 * 60 * 24 * 365 });
+  jar.set("kintai-person", String(id), { path: "/", sameSite: "lax", maxAge: 60 * 60 * 24 * 365 });
   refresh();
   redirect(safeNext(String(formData.get("next") ?? "")));
 }
@@ -91,7 +95,7 @@ export async function renamePerson(_prev: ActionState, formData: FormData): Prom
 
 export async function clockIn(formData: FormData) {
   const dest = destination(formData);
-  const person = await activePerson();
+  const person = await requirePerson();
   const today = todayISO();
   const existing = attendanceOn(person.id, today);
   if (existing?.wfh) fail(dest, "already-wfh");
@@ -107,7 +111,7 @@ export async function clockIn(formData: FormData) {
 
 export async function clockOut(formData: FormData) {
   const dest = destination(formData);
-  const person = await activePerson();
+  const person = await requirePerson();
   const today = todayISO();
   const existing = attendanceOn(person.id, today);
   if (!existing || existing.wfh || !existing.clockIn) fail(dest, "not-in");
@@ -121,7 +125,7 @@ export async function clockOut(formData: FormData) {
 
 export async function markWfh(formData: FormData) {
   const dest = destination(formData);
-  const person = await activePerson();
+  const person = await requirePerson();
   const today = todayISO();
   const existing = attendanceOn(person.id, today);
   if (existing?.wfh) fail(dest, "already-wfh");
@@ -151,7 +155,7 @@ export async function saveAttendance(_prev: ActionState, formData: FormData): Pr
   if (day > todayISO()) return { error: "future" };
   if (id != null && (!Number.isInteger(id) || id <= 0)) return { error: "missing" };
 
-  const person = await activePerson();
+  const person = await requirePerson();
   if (id != null) {
     const existing = getAttendance(id);
     if (!existing || existing.personId !== person.id) return { error: "missing" };
@@ -183,7 +187,7 @@ export async function saveLeave(_prev: ActionState, formData: FormData): Promise
   if (note.length > 200) return { error: "note" };
   if (id != null && (!Number.isInteger(id) || id <= 0)) return { error: "missing" };
 
-  const person = await activePerson();
+  const person = await requirePerson();
   const overlap = allLeaves(person.id).some(
     (leave) => leave.id !== id && rangesOverlap(start, end, leave.start, leave.end),
   );
@@ -203,7 +207,7 @@ export async function saveLeave(_prev: ActionState, formData: FormData): Promise
 
 export async function deleteAttendanceAction(formData: FormData) {
   const id = Number(formData.get("id"));
-  const person = await activePerson();
+  const person = await requirePerson();
   const row = Number.isInteger(id) ? getAttendance(id) : null;
   if (!row || row.personId !== person.id) fail("/attendance", "missing");
   deleteAttendance(id, person.id);
@@ -213,7 +217,7 @@ export async function deleteAttendanceAction(formData: FormData) {
 
 export async function deleteLeaveAction(formData: FormData) {
   const id = Number(formData.get("id"));
-  const person = await activePerson();
+  const person = await requirePerson();
   const row = Number.isInteger(id) ? getLeave(id) : null;
   if (!row || row.personId !== person.id) fail("/leave", "missing");
   deleteLeave(id, person.id);

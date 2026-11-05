@@ -107,13 +107,11 @@ export function ChoiceField({
   onChange: (value: string) => void;
 }) {
   const { open, setOpen, ref } = usePopover();
-  const hidden = useRef<HTMLInputElement>(null);
   const current = options.find((option) => option.value === value) ?? options[0];
   const listId = useId();
   const [cursor, setCursor] = useState(() => Math.max(0, options.findIndex((option) => option.value === value)));
 
   function choose(next: string) {
-    if (hidden.current) hidden.current.value = next;
     onChange(next);
     setOpen(false);
   }
@@ -168,7 +166,74 @@ export function ChoiceField({
           ))}
         </div>
       )}
-      <input ref={hidden} type="hidden" name={name} defaultValue={value} />
+      <input type="hidden" name={name} value={value} />
+    </Field>
+  );
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+export function MonthField({
+  label,
+  name,
+  value,
+  onChange,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const { open, setOpen, ref } = usePopover();
+  const [year, setYear] = useState(() => Number(value.slice(0, 4)) || new Date().getFullYear());
+  const selectedYear = Number(value.slice(0, 4));
+  const selectedMonth = Number(value.slice(5, 7));
+
+  function openPanel() {
+    if (value) setYear(Number(value.slice(0, 4)));
+    setOpen((current) => !current);
+  }
+
+  return (
+    <Field label={label} open={open} fieldRef={ref}>
+      <button type="button" className="field-button" aria-haspopup="dialog" aria-expanded={open} onClick={openPanel}>
+        <span className={value ? undefined : "is-placeholder"}>{value ? monthTitle(value) : "Choose a month"}</span>
+        <Chevron />
+      </button>
+      {open && (
+        <div className="pop pop-cal" role="dialog" aria-label={label}>
+          <div className="pop-cal-head">
+            <button type="button" className="button quiet" onClick={() => setYear((current) => current - 1)} aria-label="Previous year">
+              Prev
+            </button>
+            <strong>{year}</strong>
+            <button type="button" className="button quiet" onClick={() => setYear((current) => current + 1)} aria-label="Next year">
+              Next
+            </button>
+          </div>
+          <div className="pop-months">
+            {MONTHS.map((label, index) => {
+              const ym = `${year}-${String(index + 1).padStart(2, "0")}`;
+              const selected = year === selectedYear && index + 1 === selectedMonth;
+              return (
+                <button
+                  key={ym}
+                  type="button"
+                  className={selected ? "is-selected" : undefined}
+                  aria-pressed={selected}
+                  onClick={() => {
+                    onChange(ym);
+                    setOpen(false);
+                  }}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+      <input type="hidden" name={name} value={value} />
     </Field>
   );
 }

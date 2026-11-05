@@ -89,7 +89,7 @@ export default async function AttendancePage({
                         </>
                       )}
                     </span>
-                    {row.note && <em>{row.note}</em>}
+                    {row.note && row.note !== "sample" && <em>{row.note}</em>}
                   </div>
                   <div className="log-actions">
                     <a className="button quiet" href={`/attendance?edit=${row.id}#day-form`}>

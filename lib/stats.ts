@@ -3,8 +3,8 @@ export type LeaveType = (typeof LEAVE_TYPES)[number];
 
 export const LEAVE_LABEL: Record<LeaveType, string> = {
   vacation: "Vacation",
-  sick: "Sick",
-  personal: "Personal",
+  sick: "Sick leave",
+  personal: "Casual leave",
   unpaid: "Unpaid",
 };
 
@@ -157,14 +157,14 @@ export function chartAnchor(month: string, today: string): string {
   return today;
 }
 
-/** shortcut: clips a span at 400 days so a bad row cannot loop for years. */
+/** shortcut: clips a span at 10 years so a bad row cannot loop forever. */
 export function eachDate(start: string, end: string): string[] {
   if (end < start) return [];
   const dates: string[] = [];
   let cursor = start;
   while (cursor <= end) {
     dates.push(cursor);
-    if (dates.length > 400) break;
+    if (dates.length > 3660) break;
     cursor = addDays(cursor, 1);
   }
   return dates;
@@ -186,6 +186,23 @@ export function monthGrid(ym: string): string[] {
   return eachDate(gridStart, gridEnd);
 }
 
+export function classifyDay(
+  iso: string,
+  today: string,
+  row: AttendanceInput | null,
+  onLeave: boolean,
+): DayKind {
+  const weekend = parseISODate(iso).getDay() % 6 === 0;
+  if (iso > today) return onLeave ? "leave" : "future";
+  if (row?.wfh) return "wfh";
+  if (row?.clockOut) return "worked";
+  if (row) return "open";
+  if (onLeave) return "leave";
+  if (iso === today) return "today";
+  if (weekend) return "off";
+  return "missed";
+}
+
 function orderedLeaves(leaves: LeaveInput[]): LeaveInput[] {
   return [...leaves].sort((a, b) => a.start.localeCompare(b.start) || a.id - b.id);
 }
@@ -195,7 +212,9 @@ function leaveCovering(leaves: LeaveInput[], iso: string): LeaveInput | null {
 }
 
 export function summarize(input: {
-  month: string;
+  month?: string;
+  start?: string;
+  end?: string;
   today: string;
   attendance: AttendanceInput[];
   leaves: LeaveInput[];
@@ -207,25 +226,17 @@ export function summarize(input: {
   leaveDays: number;
   days: DayFact[];
 } {
-  const { start, end } = monthBounds(input.month);
+  const bounds = input.start && input.end ? { start: input.start, end: input.end } : monthBounds(input.month ?? input.today.slice(0, 7));
+  const { start, end } = bounds;
   const byDay = new Map(input.attendance.map((row) => [row.day, row]));
   const leaves = orderedLeaves(input.leaves);
-  const days = monthGrid(input.month).map((iso) => {
+  const days = eachDate(start, end).map((iso) => {
     const row = byDay.get(iso) ?? null;
     const leave = leaveCovering(leaves, iso);
-    const weekend = parseISODate(iso).getDay() % 6 === 0;
-    let kind: DayKind;
-    if (iso > input.today) kind = leave ? "leave" : "future";
-    else if (row?.wfh) kind = "wfh";
-    else if (row?.clockOut) kind = "worked";
-    else if (row) kind = "open";
-    else if (leave) kind = "leave";
-    else if (iso === input.today) kind = "today";
-    else if (weekend) kind = "off";
-    else kind = "missed";
+    const kind = classifyDay(iso, input.today, row, leave != null);
     return {
       iso,
-      inMonth: iso >= start && iso <= end,
+      inMonth: true,
       kind,
       hours: row?.wfh || !row?.clockIn || !row.clockOut ? null : hoursBetween(row.clockIn, row.clockOut),
       leaveType: leave?.type ?? null,

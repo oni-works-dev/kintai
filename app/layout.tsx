@@ -1,11 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense, type ReactNode } from "react";
-import Link from "next/link";
-import { Nav } from "@/components/nav";
-import { Gate, Profile } from "@/components/who";
-import { chosenPerson } from "@/lib/active";
-import { allPeople, openPunches } from "@/lib/db";
-import { longDate, todayISO } from "@/lib/stats";
+import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,61 +10,45 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export default async function RootLayout({ children }: { children: ReactNode }) {
-  const person = await chosenPerson();
-  const people = allPeople();
-  if (!person) {
-    return (
-      <html lang="en">
-        <body>
-          <Gate people={people} />
-        </body>
-      </html>
-    );
-  }
+const accountScript = `(function(){
+  document.addEventListener("click",function(e){
+    var b=e.target&&e.target.closest&&e.target.closest("[data-account]");
+    if(!b)return;
+    try{localStorage.setItem("kintai-person",b.getAttribute("data-account"))}catch(err){}
+  },true);
+  try{
+    if(location.pathname==="/me"||location.pathname.indexOf("/me/")===0)return;
+    var stored=localStorage.getItem("kintai-person");
+    if(!stored){
+      if(location.pathname!=="/choose"){
+        document.documentElement.style.visibility="hidden";
+        location.replace("/choose");
+      }
+      return;
+    }
+    if(location.pathname==="/choose"){
+      document.documentElement.style.visibility="hidden";
+      location.replace("/");
+      return;
+    }
+    var match=document.cookie.match(/(?:^|; )kintai-person=([^;]*)/);
+    var cookie=match?decodeURIComponent(match[1]):"";
+    if(stored===cookie)return;
+    document.cookie="kintai-person="+encodeURIComponent(stored)+"; Path=/; Max-Age=31536000; SameSite=Lax";
+    var after=document.cookie.match(/(?:^|; )kintai-person=([^;]*)/);
+    if((after?decodeURIComponent(after[1]):"")===stored){
+      document.documentElement.style.visibility="hidden";
+      location.replace(location.pathname+location.search);
+    }
+  }catch(err){}
+})();`;
 
-  const today = todayISO();
-  const stale = openPunches().filter((row) => row.day < today);
-
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <a className="skip" href="#content">
-          Skip to content
-        </a>
-        <div className="shell">
-          <header className="top">
-            <Link href="/" className="brand">
-              <span className="brand-mark" aria-hidden="true">
-                勤
-              </span>
-              <span>
-                <strong>Kintai</strong>
-                <small>Attendance and leave</small>
-              </span>
-            </Link>
-            <div className="top-end">
-              <Nav />
-              <Suspense>
-                <Profile people={people} active={person} />
-              </Suspense>
-            </div>
-          </header>
-          {stale.length > 0 && (
-            <div className="banners">
-              {stale.map((row) => (
-                <p className="banner warn" key={row.id} role="status">
-                  {row.personName} is still clocked in on {longDate(row.day)}.{" "}
-                  {row.personId === person.id && (
-                    <Link href={`/attendance?edit=${row.id}#day-form`}>Close that day</Link>
-                  )}
-                </p>
-              ))}
-            </div>
-          )}
-          <main id="content">{children}</main>
-          <footer className="foot">Saved on this machine in data/kintai.sqlite</footer>
-        </div>
+        <script dangerouslySetInnerHTML={{ __html: accountScript }} />
+        {children}
       </body>
     </html>
   );

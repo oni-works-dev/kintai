@@ -6,6 +6,16 @@ import { renamePerson, selectPerson, type ActionState } from "@/app/actions";
 import { errorMessage } from "@/lib/errors";
 import type { Person } from "@/lib/db";
 
+const ACCOUNT_KEY = "kintai-person";
+
+function remember(id: number) {
+  try {
+    localStorage.setItem(ACCOUNT_KEY, String(id));
+  } catch {
+    // Private mode still has the request cookie for this visit.
+  }
+}
+
 export function Gate({ people }: { people: Person[] }) {
   return (
     <main className="gate">
@@ -14,13 +24,15 @@ export function Gate({ people }: { people: Person[] }) {
           勤
         </span>
         <h1>Who&apos;s here?</h1>
-        <p>This browser keeps the person you pick.</p>
+        <p>Saved in this browser. Each person picks their own.</p>
         <div className="gate-people">
           {people.map((person) => (
             <form action={selectPerson} key={person.id}>
               <input type="hidden" name="person" value={person.id} />
               <input type="hidden" name="next" value="/" />
-              <button type="submit">{person.name}</button>
+              <button type="submit" data-account={person.id} onClick={() => remember(person.id)}>
+                {person.name}
+              </button>
             </form>
           ))}
         </div>
@@ -31,8 +43,8 @@ export function Gate({ people }: { people: Person[] }) {
 
 export function Profile({ people, active }: { people: Person[]; active: Person }) {
   const pathname = usePathname();
-  const month = useSearchParams().get("month");
-  const next = month && (pathname === "/" || pathname === "/report") ? `${pathname}?month=${month}` : pathname;
+  const search = useSearchParams().toString();
+  const next = search ? `${pathname}?${search}` : pathname;
   const [state, action, pending] = useActionState(renamePerson, null as ActionState);
   const initial = active.name.trim().charAt(0).toUpperCase() || "?";
 
@@ -68,7 +80,13 @@ export function Profile({ people, active }: { people: Person[]; active: Person }
             <form action={selectPerson} key={person.id}>
               <input type="hidden" name="person" value={person.id} />
               <input type="hidden" name="next" value={next} />
-              <button type="submit" disabled={person.id === active.id} aria-current={person.id === active.id ? "true" : undefined}>
+              <button
+                type="submit"
+                disabled={person.id === active.id}
+                aria-current={person.id === active.id ? "true" : undefined}
+                data-account={person.id}
+                onClick={() => remember(person.id)}
+              >
                 {person.name}
               </button>
             </form>
